@@ -359,6 +359,7 @@ DropdownGroupBox:AddDragList("MyDragList", {
 	Text = "A draggable list",
 	Values = { "elem1", "elem2", "elem3", "elem4" },
 	DisabledValues = { "elem4" }, -- Values listed here cannot be dragged
+	IsNumbered = true, -- Set to false to hide "1., 2., ..." prefixes
 
 	-- Optional: return false to block a requested move
 	CanMove = function(value, fromIndex, toIndex, preview)
@@ -373,6 +374,11 @@ DropdownGroupBox:AddDragList("MyDragList", {
 		print("[cb] DragList order changed:", table.concat(order, ", "))
 	end,
 })
+
+-- You can also toggle numbering at runtime:
+task.delay(5, function()
+	Options.MyDragList:SetNumbered(false)
+end)
 
 Options.MyDragList:OnChanged(function()
 	print("DragList order is now:", table.concat(Options.MyDragList.Value, ", "))

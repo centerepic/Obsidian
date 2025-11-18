@@ -359,6 +359,7 @@ local Templates = {
         RowSpacing = 2,
         PaddingTop = 4,
         PaddingBottom = 4,
+        IsNumbered = false,
         FormatDisplayValue = nil,
         CanMove = nil,
 
@@ -4833,6 +4834,7 @@ do
             PaddingTop = math.max(Info.PaddingTop or Templates.DragList.PaddingTop, 0),
             PaddingBottom = math.max(Info.PaddingBottom or Templates.DragList.PaddingBottom, 0),
             SidePadding = SIDE_PADDING,
+            IsNumbered = Info.IsNumbered,
             FormatDisplayValue = Info.FormatDisplayValue,
             CanMove = Info.CanMove,
 
@@ -5013,7 +5015,12 @@ do
 
             for Index, Item in ipairs(DragList.Items) do
                 Item.Index = Index
-                Item.Label.Text = string.format("%d. %s", Index, DragList:GetFormattedValue(Item.Value))
+                local DisplayValue = DragList:GetFormattedValue(Item.Value)
+                if DragList.IsNumbered then
+                    Item.Label.Text = string.format("%d. %s", Index, DisplayValue)
+                else
+                    Item.Label.Text = DisplayValue
+                end
                 Item:UpdateState()
             end
 
@@ -5359,6 +5366,11 @@ do
             DragList.Visible = Visible
             Holder.Visible = DragList.Visible
             Groupbox:Resize()
+        end
+
+        function DragList:SetNumbered(Numbered: boolean)
+            DragList.IsNumbered = Numbered
+            DragList:Display()
         end
 
         function DragList:SetText(Text: string)

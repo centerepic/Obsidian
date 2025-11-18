@@ -12,6 +12,7 @@ local DragList = Groupbox:AddDragList("MyDragList", {
 	Text = "A draggable list",
 	Values = { "elem1", "elem2", "elem3", "elem4" },
 	DisabledValues = { "elem4" }, -- Optional: locked entries that cannot be dragged
+	IsNumbered = true, -- Default true; set to false to hide "1., 2., ..." prefixes
 
 	-- Optional validation callback; return false to cancel a requested move
 	CanMove = function(value, fromIndex, toIndex, previewOrder)
@@ -30,6 +31,6 @@ local DragList = Groupbox:AddDragList("MyDragList", {
 print(Options.MyDragList.Value[1])
 ```
 
-The callback (and `:OnChanged` handler) receives the latest ordered array. You can also fetch a copy at any time with `Options.MyDragList:GetValue()`. Programmatic changes are supported via `SetValue`, `SetValues`, `AddValues`, and the same disabled-value helpers used by dropdowns.
+The callback (and `:OnChanged` handler) receives the latest ordered array. You can also fetch a copy at any time with `Options.MyDragList:GetValue()`. Programmatic changes are supported via `SetValue`, `SetValues`, `AddValues`, and the same disabled-value helpers used by dropdowns. If you would rather display just the entry text, toggle numbering off with `IsNumbered = false` or `Options.MyDragList:SetNumbered(false)`.
 
 Drag lists reuse the dropdown row styling, including hover highlights, so they blend in with the rest of the library. The drag interaction is animated and works with both mouse and touch input—on mobile, just tap and hold an entry before moving it to a new slot.

@@ -164,6 +164,7 @@ export type DragListInfo = {
     RowSpacing: number?,
     PaddingTop: number?,
     PaddingBottom: number?,
+    IsNumbered: boolean?,
     FormatDisplayValue: ((any) -> string)?,
     CanMove: ((any, number, number, { any }) -> (boolean?))?,
     Tooltip: string?,
@@ -473,6 +474,7 @@ export type DragList = {
     DisabledValues: { any },
     RowHeight: number,
     RowSpacing: number,
+    IsNumbered: boolean,
     CanMove: ((any, number, number, { any }) -> (boolean?))?,
     Tooltip: string?,
     DisabledTooltip: string?,
@@ -493,6 +495,7 @@ export type DragList = {
     AddDisabledValues: (self: DragList, Values: { any } | any) -> (),
     SetDisabled: (self: DragList, Disabled: boolean) -> (),
     SetVisible: (self: DragList, Visible: boolean) -> (),
+    SetNumbered: (self: DragList, Numbered: boolean) -> (),
     SetText: (self: DragList, Text: string) -> (),
 }
 
