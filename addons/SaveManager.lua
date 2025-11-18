@@ -77,6 +77,25 @@ local SaveManager = {} do
                 end
             end,
         },
+        DragList = {
+            Save = function(idx, object)
+                local value = {}
+
+                if typeof(object.Value) == "table" then
+                    for order, entry in ipairs(object.Value) do
+                        value[order] = entry
+                    end
+                end
+
+                return { type = "DragList", idx = idx, value = value }
+            end,
+            Load = function(idx, data)
+                local object = SaveManager.Library.Options[idx]
+                if object and typeof(data.value) == "table" then
+                    object:SetValue(data.value)
+                end
+            end,
+        },
         ColorPicker = {
             Save = function(idx, object)
                 return { type = "ColorPicker", idx = idx, value = object.Value:ToHex(), transparency = object.Transparency }

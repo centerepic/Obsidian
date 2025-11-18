@@ -156,6 +156,24 @@ export type DropdownInfo = {
     Visible: boolean?,
 }
 
+export type DragListInfo = {
+    Text: string?,
+    Values: { any }?,
+    DisabledValues: { any }?,
+    RowHeight: number?,
+    RowSpacing: number?,
+    PaddingTop: number?,
+    PaddingBottom: number?,
+    FormatDisplayValue: ((any) -> string)?,
+    CanMove: ((any, number, number, { any }) -> (boolean?))?,
+    Tooltip: string?,
+    DisabledTooltip: string?,
+    Callback: (({ any }) -> ())?,
+    Changed: (({ any }) -> ())?,
+    Disabled: boolean?,
+    Visible: boolean?,
+}
+
 export type ViewportInfo = {
     Object: BasePart | Model,
     Camera: Camera?,
@@ -449,6 +467,35 @@ export type Dropdown = {
     SetText: (self: Dropdown, Text: string) -> (),
 }
 
+export type DragList = {
+    Text: string?,
+    Value: { any },
+    DisabledValues: { any },
+    RowHeight: number,
+    RowSpacing: number,
+    CanMove: ((any, number, number, { any }) -> (boolean?))?,
+    Tooltip: string?,
+    DisabledTooltip: string?,
+    TooltipTable: Tooltip?,
+    Callback: (Value: { any }) -> (),
+    Changed: (Value: { any }) -> (),
+    Disabled: boolean,
+    Visible: boolean,
+    Type: "DragList",
+    Holder: Frame,
+
+    OnChanged: (self: DragList, Func: (Value: { any }) -> ()) -> (),
+    GetValue: (self: DragList) -> { any },
+    SetValue: (self: DragList, Order: { any }) -> (),
+    SetValues: (self: DragList, Values: { any }) -> (),
+    AddValues: (self: DragList, Values: { any } | any) -> (),
+    SetDisabledValues: (self: DragList, Values: { any }) -> (),
+    AddDisabledValues: (self: DragList, Values: { any } | any) -> (),
+    SetDisabled: (self: DragList, Disabled: boolean) -> (),
+    SetVisible: (self: DragList, Visible: boolean) -> (),
+    SetText: (self: DragList, Text: string) -> (),
+}
+
 export type Viewport = {
     Object: BasePart | Model,
     Camera: Camera,
@@ -533,6 +580,7 @@ export type Element =
     | Input
     | Slider
     | Dropdown
+    | DragList
     | Viewport
     | Image
     | Video
@@ -543,6 +591,7 @@ export type Option =
     | Input
     | Slider
     | Dropdown
+    | DragList
     | Viewport
     | Image
     | Video
@@ -565,6 +614,7 @@ export type BaseGroupbox = {
     AddInput: (self: Groupbox, Idx: string, Info: InputInfo) -> Input,
     AddSlider: (self: Groupbox, Idx: string, Info: SliderInfo) -> Slider,
     AddDropdown: (self: Groupbox, Idx: string, Info: DropdownInfo) -> Dropdown,
+    AddDragList: (self: Groupbox, Idx: string, Info: DragListInfo) -> DragList,
     AddViewport: (self: Groupbox, Idx: string, Info: ViewportInfo) -> Viewport,
     AddImage: (self: Groupbox, Idx: string, Info: ImageInfo) -> Image,
     AddVideo: (self: Groupbox, Idx: string, Info: VideoInfo) -> Video,

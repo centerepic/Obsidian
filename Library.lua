@@ -350,6 +350,23 @@ local Templates = {
         Disabled = false,
         Visible = true,
     },
+    DragList = {
+        Text = nil,
+        Values = {},
+        DisabledValues = {},
+        RowHeight = 22,
+        RowSpacing = 2,
+        PaddingTop = 4,
+        PaddingBottom = 4,
+        FormatDisplayValue = nil,
+        CanMove = nil,
+
+        Callback = function() end,
+        Changed = function() end,
+
+        Disabled = false,
+        Visible = true,
+    },
     Viewport = {
         Object = nil,
         Camera = nil,
@@ -4782,6 +4799,524 @@ do
         Options[Idx] = Dropdown
 
         return Dropdown
+    end
+
+    function Funcs:AddDragList(Idx, Info)
+        Info = Library:Validate(Info, Templates.DragList)
+
+        local Groupbox = self
+        local Container = Groupbox.Container
+
+        local InitialValues = {}
+        if typeof(Info.Values) == "table" then
+            for _, Value in ipairs(Info.Values) do
+                InitialValues[#InitialValues + 1] = Value
+            end
+        end
+
+        local DisabledValues = {}
+        if typeof(Info.DisabledValues) == "table" then
+            for _, Value in ipairs(Info.DisabledValues) do
+                DisabledValues[#DisabledValues + 1] = Value
+            end
+        end
+
+        local DragList = {
+            Text = typeof(Info.Text) == "string" and Info.Text or nil,
+            Value = table.clone(InitialValues),
+            AllowedValues = table.clone(InitialValues),
+            DisabledValues = DisabledValues,
+            DisabledLookup = {},
+            RowHeight = math.max(Info.RowHeight or Templates.DragList.RowHeight, 18),
+            RowSpacing = math.max(Info.RowSpacing or Templates.DragList.RowSpacing, 0),
+            PaddingTop = math.max(Info.PaddingTop or Templates.DragList.PaddingTop, 0),
+            PaddingBottom = math.max(Info.PaddingBottom or Templates.DragList.PaddingBottom, 0),
+            FormatDisplayValue = Info.FormatDisplayValue,
+            CanMove = Info.CanMove,
+
+            Tooltip = Info.Tooltip,
+            DisabledTooltip = Info.DisabledTooltip,
+            TooltipTable = nil,
+
+            Callback = Info.Callback,
+            Changed = Info.Changed,
+
+            Disabled = Info.Disabled,
+            Visible = Info.Visible,
+
+            Items = {},
+            Type = "DragList",
+        }
+
+        local Holder = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 0),
+            Visible = DragList.Visible,
+            Parent = Container,
+        })
+
+        local Label
+        if DragList.Text then
+            Label = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 14),
+                Text = DragList.Text,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Holder,
+            })
+        end
+
+        local ListFrame = New("Frame", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundColor3 = "MainColor",
+            BorderColor3 = "OutlineColor",
+            BorderSizePixel = 1,
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 0),
+            Parent = Holder,
+        })
+        New("UIPadding", {
+            PaddingBottom = UDim.new(0, DragList.PaddingBottom),
+            PaddingLeft = UDim.new(0, 6),
+            PaddingRight = UDim.new(0, 6),
+            PaddingTop = UDim.new(0, DragList.PaddingTop),
+            Parent = ListFrame,
+        })
+        New("UIListLayout", {
+            Padding = UDim.new(0, DragList.RowSpacing),
+            Parent = ListFrame,
+        })
+
+        local function GetLabelOffset()
+            return DragList.Text and 18 or 2
+        end
+
+        function DragList:UpdateDisabledLookup()
+            table.clear(DragList.DisabledLookup)
+            for _, Value in ipairs(DragList.DisabledValues) do
+                DragList.DisabledLookup[Value] = true
+            end
+        end
+
+        function DragList:IsValueDisabled(Value)
+            return DragList.DisabledLookup[Value] == true
+        end
+
+        function DragList:GetListHeight()
+            local Count = #DragList.Value
+            if Count <= 0 then
+                Count = 1
+            end
+
+            local Spacing = math.max(Count - 1, 0) * DragList.RowSpacing
+            return DragList.PaddingTop + DragList.PaddingBottom + (Count * DragList.RowHeight) + Spacing
+        end
+
+        function DragList:UpdateListSize()
+            local Height = DragList:GetListHeight()
+            ListFrame.Size = UDim2.new(1, 0, 0, Height)
+            Holder.Size = UDim2.new(1, 0, 0, Height + GetLabelOffset())
+        end
+
+        function DragList:GetFormattedValue(Value)
+            if DragList.FormatDisplayValue then
+                local Success, Result = pcall(DragList.FormatDisplayValue, Value)
+                if Success and Result ~= nil then
+                    return tostring(Result)
+                end
+            end
+
+            return tostring(Value)
+        end
+
+        function DragList:GetSlotFromPosition(YPosition)
+            local Count = #DragList.Items
+            if Count == 0 then
+                return 1
+            end
+
+            local Top = ListFrame.AbsolutePosition.Y + DragList.PaddingTop
+            local Relative = (YPosition - Top)
+            local PerItem = DragList.RowHeight + DragList.RowSpacing
+            if PerItem <= 0 then
+                return 1
+            end
+
+            local Slot = math.floor(Relative / PerItem) + 1
+            if Relative < 0 then
+                Slot = 1
+            end
+
+            return math.clamp(Slot, 1, Count + 1)
+        end
+
+        local function SetScrollingEnabled(State)
+            if not Library.ActiveTab then
+                return
+            end
+
+            for _, Side in pairs(Library.ActiveTab.Sides or {}) do
+                Side.ScrollingEnabled = State
+            end
+        end
+
+        function DragList:Display()
+            if Library.Unloaded then
+                return
+            end
+
+            for Index, Item in ipairs(DragList.Items) do
+                Item.Index = Index
+                Item.Instance.LayoutOrder = Index
+                Item.Label.Text = string.format("%d. %s", Index, DragList:GetFormattedValue(Item.Value))
+                Item:UpdateState()
+            end
+
+            if Label then
+                Label.TextTransparency = DragList.Disabled and 0.8 or 0
+            end
+        end
+
+        local function DisconnectItem(Item)
+            for _, Connection in ipairs(Item.Connections) do
+                Connection:Disconnect()
+            end
+            table.clear(Item.Connections)
+        end
+
+        function DragList:AttemptReorder(Item, SlotIndex)
+            local Count = #DragList.Items
+            if Count <= 1 then
+                return false
+            end
+
+            local FromIndex = Item.Index
+            local Slot = math.clamp(SlotIndex, 1, Count + 1)
+
+            if Slot == FromIndex or Slot == FromIndex + 1 then
+                return false
+            end
+
+            local NormalizedIndex = Slot
+            if Slot > FromIndex then
+                NormalizedIndex -= 1
+            end
+
+            local ProposedOrder = table.clone(DragList.Value)
+            local Value = table.remove(ProposedOrder, FromIndex)
+            table.insert(ProposedOrder, NormalizedIndex, Value)
+
+            if DragList.CanMove then
+                local Success, Allowed = pcall(DragList.CanMove, Value, FromIndex, NormalizedIndex, table.clone(ProposedOrder))
+                if not Success then
+                    warn(string.format("[Obsidian] DragList CanMove error: %s", tostring(Allowed)))
+                    return false
+                end
+
+                if Allowed == false then
+                    return false
+                end
+            end
+
+            DragList.Value = ProposedOrder
+
+            local ItemData = table.remove(DragList.Items, FromIndex)
+            table.insert(DragList.Items, NormalizedIndex, ItemData)
+
+            DragList:Display()
+            return true
+        end
+
+        function DragList:UpdateColors()
+            DragList:Display()
+        end
+
+        local function CreateItem(Value, Index)
+            local Button = New("TextButton", {
+                Active = not DragList.Disabled,
+                AutoButtonColor = false,
+                BackgroundColor3 = "MainColor",
+                BorderSizePixel = 0,
+                Size = UDim2.new(1, 0, 0, DragList.RowHeight),
+                Text = "",
+                Parent = ListFrame,
+            })
+
+            local Handle = New("Frame", {
+                BackgroundColor3 = "OutlineColor",
+                Size = UDim2.new(0, 8, 1, -8),
+                Position = UDim2.new(0, 2, 0, 4),
+                Parent = Button,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 2),
+                Parent = Handle,
+            })
+
+            local ValueLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 14, 0, 0),
+                Size = UDim2.new(1, -18, 1, 0),
+                Text = "",
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Button,
+            })
+
+            local Item = {
+                Value = Value,
+                Index = Index,
+                Instance = Button,
+                Label = ValueLabel,
+                Handle = Handle,
+                Dragging = false,
+                Disabled = false,
+                Connections = {},
+            }
+
+            function Item:SetDragging(State)
+                Item.Dragging = State
+                Button.TextTransparency = State and 0 or 1
+
+                if State then
+                    Button.BackgroundColor3 = Library.Scheme.AccentColor
+                else
+                    Button.BackgroundColor3 = Library.Scheme.MainColor
+                end
+            end
+
+            function Item:UpdateState()
+                local RowDisabled = DragList.Disabled or DragList:IsValueDisabled(Item.Value)
+                Item.Disabled = RowDisabled
+                Button.Active = not RowDisabled
+                ValueLabel.TextTransparency = RowDisabled and 0.5 or 0
+                Handle.BackgroundTransparency = RowDisabled and 0.4 or 0
+            end
+
+            table.insert(Item.Connections, Button.InputBegan:Connect(function(Input: InputObject)
+                if not IsClickInput(Input) or DragList.Disabled or Item.Disabled then
+                    return
+                end
+
+                Item:SetDragging(true)
+                SetScrollingEnabled(false)
+
+                local Moved = false
+                while IsDragInput(Input) do
+                    local Slot = DragList:GetSlotFromPosition(Mouse.Y)
+                    if DragList:AttemptReorder(Item, Slot) then
+                        Moved = true
+                    end
+
+                    RunService.RenderStepped:Wait()
+                end
+
+                Item:SetDragging(false)
+                SetScrollingEnabled(true)
+
+                if Moved then
+                    Library:SafeCallback(DragList.Callback, DragList.Value)
+                    Library:SafeCallback(DragList.Changed, DragList.Value)
+                    Library:UpdateDependencyBoxes()
+                end
+            end))
+
+            table.insert(Item.Connections, Button.InputEnded:Connect(function(Input)
+                if not IsClickInput(Input) then
+                    return
+                end
+
+                Item:SetDragging(false)
+            end))
+
+            return Item
+        end
+
+        function DragList:RebuildList()
+            for _, Item in ipairs(DragList.Items) do
+                DisconnectItem(Item)
+                Item.Instance:Destroy()
+            end
+            table.clear(DragList.Items)
+
+            for Index, Value in ipairs(DragList.Value) do
+                local Item = CreateItem(Value, Index)
+                table.insert(DragList.Items, Item)
+            end
+
+            DragList:UpdateListSize()
+            DragList:Display()
+            Groupbox:Resize()
+        end
+
+        local function BuildValueCounts(Values)
+            local Counts = {}
+            for _, Value in ipairs(Values) do
+                Counts[Value] = (Counts[Value] or 0) + 1
+            end
+            return Counts
+        end
+
+        function DragList:NormalizeOrder(Order)
+            if typeof(Order) ~= "table" then
+                return nil
+            end
+
+            local Counts = BuildValueCounts(DragList.AllowedValues)
+            local Result = {}
+
+            for _, Value in ipairs(Order) do
+                if Counts[Value] and Counts[Value] > 0 then
+                    Result[#Result + 1] = Value
+                    Counts[Value] -= 1
+                end
+            end
+
+            for _, Remaining in pairs(Counts) do
+                if Remaining ~= 0 then
+                    return nil
+                end
+            end
+
+            return Result
+        end
+
+        function DragList:SetValue(Order)
+            local Normalized = DragList:NormalizeOrder(Order)
+            if not Normalized then
+                return
+            end
+
+            DragList.Value = Normalized
+            DragList:RebuildList()
+
+            if not DragList.Disabled then
+                Library:SafeCallback(DragList.Callback, DragList.Value)
+                Library:SafeCallback(DragList.Changed, DragList.Value)
+                Library:UpdateDependencyBoxes()
+            end
+        end
+
+        local function CopyValues(Values)
+            local Result = {}
+            if typeof(Values) ~= "table" then
+                return Result
+            end
+
+            for _, Value in ipairs(Values) do
+                Result[#Result + 1] = Value
+            end
+
+            return Result
+        end
+
+        function DragList:SetValues(Values)
+            local CleanValues = CopyValues(Values)
+            DragList.Value = table.clone(CleanValues)
+            DragList.AllowedValues = table.clone(CleanValues)
+            DragList:RebuildList()
+
+            if not DragList.Disabled then
+                Library:SafeCallback(DragList.Callback, DragList.Value)
+                Library:SafeCallback(DragList.Changed, DragList.Value)
+                Library:UpdateDependencyBoxes()
+            end
+        end
+
+        function DragList:AddValues(Values)
+            if typeof(Values) == "table" then
+                for _, Value in ipairs(Values) do
+                    DragList.Value[#DragList.Value + 1] = Value
+                    DragList.AllowedValues[#DragList.AllowedValues + 1] = Value
+                end
+            elseif Values ~= nil then
+                DragList.Value[#DragList.Value + 1] = Values
+                DragList.AllowedValues[#DragList.AllowedValues + 1] = Values
+            end
+
+            DragList:RebuildList()
+        end
+
+        function DragList:SetDisabledValues(Values)
+            DragList.DisabledValues = CopyValues(Values)
+            DragList:UpdateDisabledLookup()
+            DragList:Display()
+        end
+
+        function DragList:AddDisabledValues(Values)
+            if typeof(Values) == "table" then
+                for _, Value in ipairs(Values) do
+                    table.insert(DragList.DisabledValues, Value)
+                end
+            elseif Values ~= nil then
+                table.insert(DragList.DisabledValues, Values)
+            end
+
+            DragList:UpdateDisabledLookup()
+            DragList:Display()
+        end
+
+        function DragList:OnChanged(Func)
+            DragList.Changed = Func
+        end
+
+        function DragList:GetValue()
+            return table.clone(DragList.Value)
+        end
+
+        function DragList:SetDisabled(Disabled: boolean)
+            DragList.Disabled = Disabled
+
+            if DragList.TooltipTable then
+                DragList.TooltipTable.Disabled = DragList.Disabled
+            end
+
+            DragList:Display()
+        end
+
+        function DragList:SetVisible(Visible: boolean)
+            DragList.Visible = Visible
+            Holder.Visible = DragList.Visible
+            Groupbox:Resize()
+        end
+
+        function DragList:SetText(Text: string)
+            DragList.Text = Text
+            if Label then
+                Label.Text = Text
+            elseif Text then
+                Label = New("TextLabel", {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, 14),
+                    Text = Text,
+                    TextSize = 14,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = Holder,
+                })
+            end
+
+            DragList:UpdateListSize()
+            Groupbox:Resize()
+        end
+
+        DragList:UpdateDisabledLookup()
+
+        if typeof(DragList.Tooltip) == "string" or typeof(DragList.DisabledTooltip) == "string" then
+            DragList.TooltipTable = Library:AddTooltip(DragList.Tooltip, DragList.DisabledTooltip, ListFrame)
+            DragList.TooltipTable.Disabled = DragList.Disabled
+        end
+
+        DragList:RebuildList()
+        Groupbox:Resize()
+
+        DragList.Holder = Holder
+        table.insert(Groupbox.Elements, DragList)
+
+        DragList.Default = table.clone(DragList.Value)
+        Options[Idx] = DragList
+
+        return DragList
     end
 
     function Funcs:AddViewport(Idx, Info)

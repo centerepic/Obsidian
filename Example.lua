@@ -355,6 +355,29 @@ DropdownGroupBox:AddDropdown("MyDropdown", {
 	Visible = true, -- Will make the dropdown invisible (true / false)
 })
 
+DropdownGroupBox:AddDragList("MyDragList", {
+	Text = "A draggable list",
+	Values = { "elem1", "elem2", "elem3", "elem4" },
+	DisabledValues = { "elem4" }, -- Values listed here cannot be dragged
+
+	-- Optional: return false to block a requested move
+	CanMove = function(value, fromIndex, toIndex, preview)
+		if value == "elem1" and toIndex == 1 then
+			return false
+		end
+
+		return true
+	end,
+
+	Callback = function(order)
+		print("[cb] DragList order changed:", table.concat(order, ", "))
+	end,
+})
+
+Options.MyDragList:OnChanged(function()
+	print("DragList order is now:", table.concat(Options.MyDragList.Value, ", "))
+end)
+
 Options.MyDropdown:OnChanged(function()
 	print("Dropdown got changed. New value:", Options.MyDropdown.Value)
 end)
