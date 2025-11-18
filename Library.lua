@@ -357,8 +357,9 @@ local Templates = {
         DisabledValues = {},
         RowHeight = 22,
         RowSpacing = 2,
-        PaddingTop = 4,
-        PaddingBottom = 4,
+        PaddingTop = 6,
+        PaddingBottom = 6,
+        SidePadding = 6,
         IsNumbered = false,
         FormatDisplayValue = nil,
         CanMove = nil,
@@ -4808,7 +4809,6 @@ do
 
         local Groupbox = self
         local Container = Groupbox.Container
-        local SIDE_PADDING = 6
 
         local function CopyArray(Array)
             local Result = {}
@@ -4833,7 +4833,7 @@ do
             RowSpacing = math.max(Info.RowSpacing or Templates.DragList.RowSpacing, 0),
             PaddingTop = math.max(Info.PaddingTop or Templates.DragList.PaddingTop, 0),
             PaddingBottom = math.max(Info.PaddingBottom or Templates.DragList.PaddingBottom, 0),
-            SidePadding = SIDE_PADDING,
+            SidePadding = math.max(Info.SidePadding or Templates.DragList.SidePadding, 0),
             IsNumbered = Info.IsNumbered,
             FormatDisplayValue = Info.FormatDisplayValue,
             CanMove = Info.CanMove,
