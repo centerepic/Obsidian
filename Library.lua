@@ -8,6 +8,7 @@ local SoundService: SoundService = cloneref(game:GetService("SoundService"))
 local UserInputService: UserInputService = cloneref(game:GetService("UserInputService"))
 local TextService: TextService = cloneref(game:GetService("TextService"))
 local Teams: Teams = cloneref(game:GetService("Teams"))
+local GuiService: GuiService = cloneref(game:GetService("GuiService"))
 local TweenService: TweenService = cloneref(game:GetService("TweenService"))
 
 local getgenv = getgenv or function()
@@ -4806,31 +4807,32 @@ do
 
         local Groupbox = self
         local Container = Groupbox.Container
+        local SIDE_PADDING = 6
 
-        local InitialValues = {}
-        if typeof(Info.Values) == "table" then
-            for _, Value in ipairs(Info.Values) do
-                InitialValues[#InitialValues + 1] = Value
+        local function CopyArray(Array)
+            local Result = {}
+            if typeof(Array) ~= "table" then
+                return Result
             end
-        end
 
-        local DisabledValues = {}
-        if typeof(Info.DisabledValues) == "table" then
-            for _, Value in ipairs(Info.DisabledValues) do
-                DisabledValues[#DisabledValues + 1] = Value
+            for _, Value in ipairs(Array) do
+                Result[#Result + 1] = Value
             end
+
+            return Result
         end
 
         local DragList = {
             Text = typeof(Info.Text) == "string" and Info.Text or nil,
-            Value = table.clone(InitialValues),
-            AllowedValues = table.clone(InitialValues),
-            DisabledValues = DisabledValues,
+            Value = CopyArray(Info.Values),
+            AllowedValues = CopyArray(Info.Values),
+            DisabledValues = CopyArray(Info.DisabledValues),
             DisabledLookup = {},
             RowHeight = math.max(Info.RowHeight or Templates.DragList.RowHeight, 18),
             RowSpacing = math.max(Info.RowSpacing or Templates.DragList.RowSpacing, 0),
             PaddingTop = math.max(Info.PaddingTop or Templates.DragList.PaddingTop, 0),
             PaddingBottom = math.max(Info.PaddingBottom or Templates.DragList.PaddingBottom, 0),
+            SidePadding = SIDE_PADDING,
             FormatDisplayValue = Info.FormatDisplayValue,
             CanMove = Info.CanMove,
 
@@ -4872,19 +4874,20 @@ do
             BackgroundColor3 = "MainColor",
             BorderColor3 = "OutlineColor",
             BorderSizePixel = 1,
+            ClipsDescendants = true,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 0),
             Parent = Holder,
         })
-        New("UIPadding", {
-            PaddingBottom = UDim.new(0, DragList.PaddingBottom),
-            PaddingLeft = UDim.new(0, 6),
-            PaddingRight = UDim.new(0, 6),
-            PaddingTop = UDim.new(0, DragList.PaddingTop),
+        New("UICorner", {
+            CornerRadius = UDim.new(0, 3),
             Parent = ListFrame,
         })
-        New("UIListLayout", {
-            Padding = UDim.new(0, DragList.RowSpacing),
+
+        local ItemsHolder = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromScale(1, 1),
+            ClipsDescendants = true,
             Parent = ListFrame,
         })
 
@@ -4930,6 +4933,42 @@ do
             return tostring(Value)
         end
 
+        function DragList:GetTargetPosition(Index)
+            local Offset = DragList.PaddingTop + ((Index - 1) * (DragList.RowHeight + DragList.RowSpacing))
+            return UDim2.new(0, DragList.SidePadding, 0, Offset)
+        end
+
+        function DragList:SetDraggedItemPosition(Item, PointerY)
+            if not Item.Dragging then
+                return
+            end
+
+            local LocalY = PointerY - ListFrame.AbsolutePosition.Y - (DragList.RowHeight / 2)
+            local MaxOffset = DragList.PaddingTop
+                + math.max(#DragList.Items - 1, 0) * (DragList.RowHeight + DragList.RowSpacing)
+            local Target = math.clamp(LocalY, DragList.PaddingTop, MaxOffset)
+            Item.Instance.Position = UDim2.new(0, DragList.SidePadding, 0, Target)
+        end
+
+        function DragList:LayoutItems(Animate)
+            for _, Item in ipairs(DragList.Items) do
+                if Item.Dragging then
+                    continue
+                end
+
+                local Target = DragList:GetTargetPosition(Item.Index)
+                StopTween(Item.Tween)
+                if Animate then
+                    Item.Tween = TweenService:Create(Item.Instance, Library.TweenInfo, {
+                        Position = Target,
+                    })
+                    Item.Tween:Play()
+                else
+                    Item.Instance.Position = Target
+                end
+            end
+        end
+
         function DragList:GetSlotFromPosition(YPosition)
             local Count = #DragList.Items
             if Count == 0 then
@@ -4961,14 +5000,19 @@ do
             end
         end
 
-        function DragList:Display()
+        local function GetPointerLocation()
+            local Location = UserInputService:GetMouseLocation()
+            local Inset = GuiService:GetGuiInset()
+            return Vector2.new(Location.X - Inset.X, Location.Y - Inset.Y)
+        end
+
+        function DragList:Display(Animate)
             if Library.Unloaded then
                 return
             end
 
             for Index, Item in ipairs(DragList.Items) do
                 Item.Index = Index
-                Item.Instance.LayoutOrder = Index
                 Item.Label.Text = string.format("%d. %s", Index, DragList:GetFormattedValue(Item.Value))
                 Item:UpdateState()
             end
@@ -4976,6 +5020,8 @@ do
             if Label then
                 Label.TextTransparency = DragList.Disabled and 0.8 or 0
             end
+
+            DragList:LayoutItems(Animate)
         end
 
         local function DisconnectItem(Item)
@@ -5024,7 +5070,7 @@ do
             local ItemData = table.remove(DragList.Items, FromIndex)
             table.insert(DragList.Items, NormalizedIndex, ItemData)
 
-            DragList:Display()
+            DragList:Display(true)
             return true
         end
 
@@ -5038,15 +5084,28 @@ do
                 AutoButtonColor = false,
                 BackgroundColor3 = "MainColor",
                 BorderSizePixel = 0,
-                Size = UDim2.new(1, 0, 0, DragList.RowHeight),
+                Position = DragList:GetTargetPosition(Index),
+                Size = UDim2.new(1, -(DragList.SidePadding * 2), 0, DragList.RowHeight),
                 Text = "",
-                Parent = ListFrame,
+                ClipsDescendants = true,
+                ZIndex = 2,
+                Parent = ItemsHolder,
+            })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 3),
+                Parent = Button,
+            })
+            local ItemStroke = New("UIStroke", {
+                Color = "OutlineColor",
+                Transparency = 0.35,
+                Parent = Button,
             })
 
             local Handle = New("Frame", {
+                AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundColor3 = "OutlineColor",
-                Size = UDim2.new(0, 8, 1, -8),
-                Position = UDim2.new(0, 2, 0, 4),
+                Position = UDim2.new(0, 6, 0.5, 0),
+                Size = UDim2.new(0, 6, 0, DragList.RowHeight - 10),
                 Parent = Button,
             })
             New("UICorner", {
@@ -5056,11 +5115,13 @@ do
 
             local ValueLabel = New("TextLabel", {
                 BackgroundTransparency = 1,
-                Position = UDim2.new(0, 14, 0, 0),
+                Position = UDim2.new(0, 18, 0, 0),
                 Size = UDim2.new(1, -18, 1, 0),
                 Text = "",
                 TextSize = 14,
+                TextTransparency = 0.2,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 3,
                 Parent = Button,
             })
 
@@ -5070,28 +5131,45 @@ do
                 Instance = Button,
                 Label = ValueLabel,
                 Handle = Handle,
+                Stroke = ItemStroke,
+                Tween = nil,
                 Dragging = false,
                 Disabled = false,
+                Hovering = false,
                 Connections = {},
             }
 
+            function Item:UpdateVisual()
+                local BaseColor = Item.Dragging and Library.Scheme.AccentColor or Library.Scheme.MainColor
+                Button.BackgroundColor3 = BaseColor
+                if Library.Registry[Button] then
+                    Library.Registry[Button].BackgroundColor3 = Item.Dragging and "AccentColor" or "MainColor"
+                end
+
+                local TargetTransparency = Item.Disabled and 0.55 or (Item.Dragging and 0 or 0.35)
+                ItemStroke.Transparency = TargetTransparency
+                Handle.BackgroundTransparency = Item.Disabled and 0.5 or (Item.Hovering and 0 or 0.2)
+
+                if Item.Disabled then
+                    ValueLabel.TextTransparency = 0.6
+                else
+                    ValueLabel.TextTransparency = Item.Hovering and 0 or 0.15
+                end
+            end
+
             function Item:SetDragging(State)
                 Item.Dragging = State
-                Button.TextTransparency = State and 0 or 1
-
-                if State then
-                    Button.BackgroundColor3 = Library.Scheme.AccentColor
-                else
-                    Button.BackgroundColor3 = Library.Scheme.MainColor
-                end
+                Button.ZIndex = State and 4 or 2
+                ValueLabel.ZIndex = State and 5 or 3
+                StopTween(Item.Tween)
+                Item:UpdateVisual()
             end
 
             function Item:UpdateState()
                 local RowDisabled = DragList.Disabled or DragList:IsValueDisabled(Item.Value)
                 Item.Disabled = RowDisabled
                 Button.Active = not RowDisabled
-                ValueLabel.TextTransparency = RowDisabled and 0.5 or 0
-                Handle.BackgroundTransparency = RowDisabled and 0.4 or 0
+                Item:UpdateVisual()
             end
 
             table.insert(Item.Connections, Button.InputBegan:Connect(function(Input: InputObject)
@@ -5100,11 +5178,15 @@ do
                 end
 
                 Item:SetDragging(true)
+                DragList:SetDraggedItemPosition(Item, GetPointerLocation().Y)
                 SetScrollingEnabled(false)
 
                 local Moved = false
                 while IsDragInput(Input) do
-                    local Slot = DragList:GetSlotFromPosition(Mouse.Y)
+                    local Pointer = GetPointerLocation()
+                    DragList:SetDraggedItemPosition(Item, Pointer.Y)
+
+                    local Slot = DragList:GetSlotFromPosition(Pointer.Y)
                     if DragList:AttemptReorder(Item, Slot) then
                         Moved = true
                     end
@@ -5113,6 +5195,7 @@ do
                 end
 
                 Item:SetDragging(false)
+                DragList:LayoutItems(true)
                 SetScrollingEnabled(true)
 
                 if Moved then
@@ -5128,6 +5211,16 @@ do
                 end
 
                 Item:SetDragging(false)
+            end))
+
+            table.insert(Item.Connections, Button.MouseEnter:Connect(function()
+                Item.Hovering = true
+                Item:UpdateVisual()
+            end))
+
+            table.insert(Item.Connections, Button.MouseLeave:Connect(function()
+                Item.Hovering = false
+                Item:UpdateVisual()
             end))
 
             return Item
@@ -5198,21 +5291,8 @@ do
             end
         end
 
-        local function CopyValues(Values)
-            local Result = {}
-            if typeof(Values) ~= "table" then
-                return Result
-            end
-
-            for _, Value in ipairs(Values) do
-                Result[#Result + 1] = Value
-            end
-
-            return Result
-        end
-
         function DragList:SetValues(Values)
-            local CleanValues = CopyValues(Values)
+            local CleanValues = CopyArray(Values)
             DragList.Value = table.clone(CleanValues)
             DragList.AllowedValues = table.clone(CleanValues)
             DragList:RebuildList()
@@ -5239,7 +5319,7 @@ do
         end
 
         function DragList:SetDisabledValues(Values)
-            DragList.DisabledValues = CopyValues(Values)
+            DragList.DisabledValues = CopyArray(Values)
             DragList:UpdateDisabledLookup()
             DragList:Display()
         end
